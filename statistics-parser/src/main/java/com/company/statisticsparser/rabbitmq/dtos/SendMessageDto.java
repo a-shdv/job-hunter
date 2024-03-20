@@ -9,7 +9,18 @@ import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class SendMessageDto implements Serializable {
-
+    String username;
+    String avgSalaryTitle;
+    String avgSalaryDescription;
+    String medianSalaryTitle;
+    String medianSalaryDescription;
+    String modalSalaryTitle;
+    String modalSalaryDescription;
+    String profession;
+    String city;
+    String year;
+    String currency;
 }

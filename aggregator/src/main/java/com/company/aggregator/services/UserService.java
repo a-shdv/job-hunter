@@ -3,7 +3,11 @@ package com.company.aggregator.services;
 import com.company.aggregator.dtos.ChangePasswordDto;
 import com.company.aggregator.dtos.UserLockStatusDto;
 import com.company.aggregator.enums.Role;
+import com.company.aggregator.models.Image;
+import com.company.aggregator.models.Statistics;
 import com.company.aggregator.models.User;
+import com.company.aggregator.rabbitmq.dtos.statistics.ReceiveMessageDto;
+import com.company.aggregator.repositories.ImageStorageRepository;
 import com.company.aggregator.repositories.UserRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
@@ -28,6 +32,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
+    private final ImageStorageRepository imageStorageRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${constants.admin.email}")
@@ -55,9 +60,19 @@ public class UserService implements UserDetailsService {
     @Async("asyncExecutor")
     @Transactional
     public CompletableFuture<User> saveUserAsync(User user) {
+
+
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setRoles(Collections.singleton(Role.USER));
         user.setAccountNonLocked(true);
+        return CompletableFuture.completedFuture(userRepository.save(user));
+    }
+
+    @Async("asyncExecutor")
+    @Transactional
+    public CompletableFuture<User> saveUserStatisticsAsync(User user, ReceiveMessageDto message) {
+        Statistics statistics = com.company.aggregator.rabbitmq.dtos.statistics.ReceiveMessageDto.toStatistics(message);
+        user.setStatistics(statistics);
         return CompletableFuture.completedFuture(userRepository.save(user));
     }
 
@@ -68,6 +83,14 @@ public class UserService implements UserDetailsService {
                 .findAll(pageRequest)
                 .stream()
                 .filter(el -> el.getRoles().stream().findFirst().get().getAuthority().equals("USER")).collect(Collectors.toList()));
+    }
+
+    @Transactional
+    public List<User> findUsers(PageRequest pageRequest) {
+        return userRepository
+                .findAll(pageRequest)
+                .stream()
+                .filter(el -> el.getRoles().stream().findFirst().get().getAuthority().equals("USER")).collect(Collectors.toList());
     }
 
     @Async("asyncExecutor")
@@ -112,7 +135,18 @@ public class UserService implements UserDetailsService {
         return CompletableFuture.completedFuture(userRepository.save(user));
     }
 
+    @Async
+    @Transactional
+    public CompletableFuture<Void> uploadAvatarAsync(User user, Image avatar) {
+        avatar.setUser(user);
+        user.setAvatar(avatar);
+        userRepository.save(user);
+        imageStorageRepository.save(avatar);
+        return CompletableFuture.completedFuture(null);
+    }
+
     @Override
+    @Transactional
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         return userRepository.findUserByUsername(username);
     }

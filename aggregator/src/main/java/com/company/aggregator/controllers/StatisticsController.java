@@ -1,11 +1,16 @@
 package com.company.aggregator.controllers;
 
 import com.company.aggregator.dtos.StatisticsDto;
+import com.company.aggregator.models.Statistics;
+import com.company.aggregator.models.User;
 import com.company.aggregator.rabbitmq.services.RabbitMqService;
+import com.company.aggregator.services.StatisticsService;
+import com.company.aggregator.services.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,17 +30,22 @@ public class StatisticsController {
     private String statisticsHeartbeatUrl;
     private boolean isStatisticsParserAvailable;
     private final RabbitMqService rabbitMqService;
+    private final StatisticsService statisticsService;
+    private final UserService userService;
 
     @GetMapping
-    public String findStatistics(Model model) {
+    public String findStatistics(@AuthenticationPrincipal User user, Model model) {
+        Statistics statistics = statisticsService.findStatisticsByUsernameAsync(user.getUsername()).join();
         model.addAttribute("isParserAvailable", isStatisticsParserAvailable);
+        model.addAttribute("statistics", statistics);
         return "statistics/statistics";
     }
 
     @PostMapping
-    public String findStatistics(@ModelAttribute("statisticsDto") StatisticsDto statisticsDto, Model model) {
+    public String findStatistics(@ModelAttribute("statisticsDto") StatisticsDto statisticsDto) {
+        statisticsService.deleteStatisticsAsync(statisticsDto).join();
         rabbitMqService.sendToStatisticsParser(StatisticsDto.toSendMessageDto(statisticsDto));
-        return "redirect:/statistics";
+        return "redirect:/";
     }
 
     @Scheduled(initialDelay = 2_000, fixedDelay = 10_000)

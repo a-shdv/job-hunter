@@ -4,8 +4,8 @@ import com.company.aggregator.exceptions.VacancyNotFoundException;
 import com.company.aggregator.models.User;
 import com.company.aggregator.models.Vacancy;
 import com.company.aggregator.rabbitmq.dtos.vacancies.ReceiveMessageDto;
-import com.company.aggregator.repositories.VacancyRepository;
 import com.company.aggregator.repositories.UserRepository;
+import com.company.aggregator.repositories.VacancyRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -30,6 +30,13 @@ public class VacancyService {
     }
 
 
+    @Transactional
+    public List<Vacancy> saveMessageList(List<ReceiveMessageDto> receiveMessageDtoList, User user) {
+        List<Vacancy> vacancies = ReceiveMessageDto.toVacancyList(receiveMessageDtoList);
+        vacancies.forEach(vacancy -> vacancy.setUser(user));
+        return vacancyRepository.saveAll(vacancies);
+    }
+
     @Async("asyncExecutor")
     @Transactional
     public CompletableFuture<List<Vacancy>> saveMessageListAsync(List<ReceiveMessageDto> receiveMessageDtoList, User user) {
@@ -50,6 +57,11 @@ public class VacancyService {
     @Transactional
     public CompletableFuture<Page<Vacancy>> findVacanciesAsync(User user, PageRequest pageRequest) {
         return CompletableFuture.completedFuture(vacancyRepository.findByUser(user, pageRequest));
+    }
+
+    @Transactional
+    public Page<Vacancy> findVacancies(User user, PageRequest pageRequest) {
+        return vacancyRepository.findByUser(user, pageRequest);
     }
 
     @Async("asyncExecutor")
