@@ -1,17 +1,16 @@
 package com.company.aggregator.controllers;
 
 import com.company.aggregator.dtos.FavouriteDto;
-import com.company.aggregator.exceptions.FavouritesIsEmptyException;
 import com.company.aggregator.models.Favourite;
 import com.company.aggregator.models.User;
 import com.company.aggregator.services.EmailSenderService;
 import com.company.aggregator.services.FavouriteService;
 import com.company.aggregator.services.PdfGeneratorService;
-import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -19,9 +18,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.io.FileNotFoundException;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @Controller
@@ -48,40 +44,30 @@ public class FavouriteController {
         }
         Page<Favourite> favourites = favouriteService.findFavourites(user, PageRequest.of(page, size));
         model.addAttribute("favourites", favourites);
-        return "vacancies/favourites";
+        return "favourites/favourites";
     }
 
     @PostMapping
-    public String addToFavourites(@AuthenticationPrincipal User user,
-                                  @ModelAttribute("favouriteDto") FavouriteDto favouriteDto,
-                                  RedirectAttributes redirectAttributes) {
+    public CompletableFuture<ResponseEntity<String>> addToFavourites(@AuthenticationPrincipal User user,
+                                                                     @ModelAttribute("favouriteDto") FavouriteDto favouriteDto) {
         CompletableFuture<Void> future = favouriteService.addToFavouritesAsync(user, FavouriteDto.toFavourite(favouriteDto));
-        future.handle((res, ex) -> {
-            if (ex != null) {
-                log.info(ex.getMessage());
-                redirectAttributes.addFlashAttribute("error", ex.getMessage());
-            } else {
-                redirectAttributes.addFlashAttribute("success", "Вакансия была успешно добавлена в избранное!");
-            }
-            return null;
-        }).join();
-        return "redirect:/vacancies";
+
+        return future.thenApply(result -> ResponseEntity.ok("Success!"))
+                .exceptionally(ex -> {
+                    log.error(ex.getMessage());
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(ex.getMessage());
+                });
     }
 
 
     @PostMapping("/{id}")
-    public String deleteFromFavourites(@AuthenticationPrincipal User user, @PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public ResponseEntity<String> deleteFromFavourites(@AuthenticationPrincipal User user, @PathVariable Long id) {
         CompletableFuture<Void> future = favouriteService.deleteFromFavouritesAsync(user, id);
-        future.handle((res, ex) -> {
-            if (ex != null) {
-                log.info(ex.getMessage());
-                redirectAttributes.addFlashAttribute("error", ex.getMessage());
-            } else {
-                redirectAttributes.addFlashAttribute("success", "Вакансия успешно удалена!");
-            }
-            return null;
-        }).join();
-        return "redirect:/favourites";
+        return future.thenApply((res) -> ResponseEntity.ok("Success!"))
+                .exceptionally(ex ->
+                        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(ex.getMessage())).join();
     }
 
     @PostMapping("/clear")
@@ -115,8 +101,7 @@ public class FavouriteController {
 //                        future.completeExceptionally(e);
 //                    }
 //                });
-//
-//
+
 //        future.handle((res, ex) -> {
 //            if (ex != null) {
 //                redirectAttributes.addFlashAttribute("error", ex.getMessage());
